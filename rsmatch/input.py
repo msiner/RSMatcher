@@ -43,7 +43,7 @@ class ReferralRow:
         if row[8].startswith('This is my first'):
             schedule = [[0] * meta.num_slots for _ in range(meta.num_days)]
             # lunch, recess1, recess2
-            exclusions = row[9:11]
+            exclusions = row[9:12]
             days = row[12:12 + meta.num_days]
             for day_i in range(meta.num_days):
                 day_times = days[day_i]
@@ -63,7 +63,7 @@ class ReferralRow:
             
             # Handle these second to make sure they are excluded
             for exclusion in exclusions:
-                if not exclusion.startswith('N/A'):
+                if exclusion not in ('', 'N/A'):
                     start, stop = exclusion.split('-')
                     start = meta.time_to_slot(start)
                     stop = meta.time_to_slot(stop)
