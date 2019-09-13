@@ -119,7 +119,7 @@ class Metadata(object):
         self.minutes_per_slot = 15
         self.minutes_per_assignment = 30
         self.start_time = datetime.timedelta(hours=8, minutes=30)
-        self.end_time = datetime.timedelta(hours=15, minutes=0)
+        self.end_time = datetime.timedelta(hours=15, minutes=30)
         self.slots_per_assignment = int(
             math.ceil(self.minutes_per_assignment / self.minutes_per_slot))
 
@@ -130,7 +130,7 @@ class Metadata(object):
             curr_time = curr_time + datetime.timedelta(hours=12)
         if curr_time > self.end_time:
             raise ValueError(
-                'Time falls outside window %s' % curr_time.isoformat())
+                'Time falls outside window %s' % curr_time)
         delta_m = (curr_time - self.start_time).total_seconds() // 60
         return int(delta_m // self.minutes_per_slot)
 
