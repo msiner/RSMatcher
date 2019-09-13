@@ -25,6 +25,7 @@ import os.path
 import csv
 import random
 import argparse
+import traceback
 
 from . import database
 
@@ -73,7 +74,7 @@ class ReferralRow:
             self.schedule = schedule
         
         self.students = []
-        for col_i in range(12 + meta.num_days, len(row), 9):
+        for col_i in range(12 + meta.num_days, len(row) - 2, 9):
             student_row = row[col_i:col_i + 9]
             student = database.Student()
             student.teacher = self.teacher.email
@@ -227,13 +228,17 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
                     school.teachers.append(referral.teacher)
                 if referral.schedule:
                     teacher_schedules[referral.teacher.email] = referral.schedule
-                else:
+                elif referral.teacher.email in teacher_schedules:
                     for student in referral.students:
                         student.schedule = teacher_schedules[student.teacher]
+                else:
+                    raise ValueError(
+                        'No schedule found for %s' % referral.teacher.email)
                 for student in referral.students:
                     school.students.append(student)
             except Exception as ex:
-                row.append(str(ex))
+                #traceback.print_exc()
+                row.append(repr(ex))
                 invalid_referrals.append(row)
 
     # Coaches
