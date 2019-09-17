@@ -155,6 +155,10 @@ class AssignRow:
         self.coach_email = row[13]
         self.coach_first = row[14]
         self.coach_last = row[15]
+        self.manual = False
+        if len(row) > 16:
+            if row[16].lower() in ('true', 'yes'):
+                self.manual = True
 
     def to_db_obj(self, rsdb):
         school = None
@@ -251,7 +255,7 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
                 coach = CoachRow(row, meta)
                 coaches.append(coach)
             except Exception as ex:
-                row.append(str(ex))
+                row.append(repr(ex))
                 invalid_coaches.append(row)
 
     rsdb = database.RSDatabase()
@@ -271,6 +275,8 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
         for row in invalid_referrals:
             print(row)
             writer.writerow(row)
+        if invalid_referrals:
+            print('Invalid referrals written to %s' % csv_path)
             
 
     csv_path = os.path.join(out_dir, 'invalid_coaches.csv')
@@ -280,6 +286,8 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
         for row in invalid_coaches:
             print(row)
             writer.writerow(row)
+        if invalid_coaches:
+            print('Invalid coaches written to %s' % csv_path)
 
     if assign_path:
         invalid_assigns = []
@@ -292,12 +300,13 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
                 try:
                     assign = AssignRow(row, meta)
                     assign_tuple = assign.to_db_obj(rsdb)
-                    assignments.append(assign_tuple)
+                    if not assign.manual:
+                        rsdb.check_assignment(assign_tuple)
+                    rsdb.add_assignment(assign_tuple)
                 except Exception as ex:
-                    row.append(str(ex))
+                    row.append(repr(ex))
                     invalid_assigns.append(row)
 
-        rsdb.assignments = assignments
         rsdb.save()
 
         csv_path = os.path.join(out_dir, 'invalid_assignments.csv')
@@ -307,6 +316,8 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
             for row in invalid_assigns:
                 print(row)
                 writer.writerow(row)
+            if invalid_assigns:
+                print('Invalid assignments written to %s' % csv_path)
         
 
 

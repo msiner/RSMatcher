@@ -45,7 +45,8 @@ class MatcherOutput:
             'Teacher Email', 'Teacher First', 'Teacher Last',
             'Student ID', 'Student First', 'Student Last',
             'Grade', 'Gender', 'Reading Level',
-            'Volunteer ID', 'Coach Email', 'Coach First', 'Coach Last']]
+            'Volunteer ID', 'Coach Email', 'Coach First', 'Coach Last',
+            'Manual']]
         for assign in self._rsdb.assignments:
             day, slot, t_guid, s_guid, c_guid = assign
             day_str = self._rsdb.metadata.day_to_str(day)
@@ -54,6 +55,7 @@ class MatcherOutput:
             student = self._rsdb.catalog.get_obj(s_guid)
             coach = self._rsdb.catalog.get_obj(c_guid)
             school = self._rsdb.find_school(teacher)
+            manual = self._rsdb.is_manual_assignment(assign)
             rows.append([
                 school.name,
                 day_str,
@@ -70,7 +72,8 @@ class MatcherOutput:
                 coach.vid,
                 coach.email,
                 coach.first,
-                coach.last])
+                coach.last,
+                manual])
 
         with open(path, 'w', newline='') as csv_file:
             writer = csv.writer(csv_file)

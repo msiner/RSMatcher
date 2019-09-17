@@ -40,14 +40,11 @@ class RSDatabase(object):
         self.catalog = Catalog()
         self.metadata = Metadata()
         self._assignments = []
+        self._manual_assignments = set()
 
     @property
     def assignments(self):
         return self._assignments.copy()
-
-    @assignments.setter
-    def assignments(self, val):
-        self._assignments = sorted(val)
 
     @classmethod
     def from_path(cls, path):
@@ -61,7 +58,9 @@ class RSDatabase(object):
         database.coaches = coaches
         database.catalog = Catalog.from_json_obj(json_obj['catalog'])
         database.metadata = Metadata.from_json_obj(json_obj['metadata'])
-        database.assignments = [tuple(x) for x in json_obj['assignments']]
+        database._assignments = [tuple(x) for x in json_obj['assignments']]
+        database._manual_assignments = set(
+            [tuple(x) for x in json_obj['manual_assignments']])
         return database
 
     def save(self, path=None):
@@ -71,7 +70,8 @@ class RSDatabase(object):
             raise ValueError('No path specified')
         json_obj = collections.OrderedDict([
             ('metadata', self.metadata.to_json_obj()),
-            ('assignments', self.assignments),
+            ('assignments', self._assignments),
+            ('manual_assignments', list(self._manual_assignments)),
             ('schools', [x.to_json_obj() for x in self.schools]),
             ('coaches', [x.to_json_obj() for x in self.coaches]),
             ('catalog', self.catalog.to_json_obj())])
@@ -99,7 +99,7 @@ class RSDatabase(object):
                     return school
         return None
 
-    def add_assignment(self, assign):
+    def add_assignment(self, assign, manual=False):
         index = 0
         for assign_i in range(len(self._assignments)):
             if self._assignments[assign_i] < assign:
@@ -109,6 +109,44 @@ class RSDatabase(object):
             elif self._assignments[assign_i] > assign:
                 break
         self._assignments.insert(index, assign)
+        if manual:
+            self._manual_assignments.add(assign)
+        
+    def check_assignment(self, assign):
+        day, slot, t_guid, s_guid, c_guid = assign
+        teacher = self.catalog.get_obj(t_guid)
+        student = self.catalog.get_obj(s_guid)
+        coach = self.catalog.get_obj(c_guid)
+        school = self.find_school(teacher)
+        day_str = self.metadata.day_to_str(day)
+        time_str = self.metadata.slot_to_time(slot)
+        num_slots = self.metadata.slots_per_assignment
+        for slot_val in coach.schedule[day][slot:slot + num_slots]:
+            if not slot_val:
+                raise ValueError(
+                    'Coach not available %s at %s' % (day_str, time_str))
+        for slot_val in student.schedule[day][slot:slot + num_slots]:
+            if not slot_val:
+                raise ValueError(
+                    'Student not available %s at %s' % (day_str, time_str))
+        for curr_assign in self._assignments:
+            curr_day, curr_slot, _, curr_s, curr_c = curr_assign
+            curr_school = self.find_school(teacher)
+            if curr_assign == assign:
+                raise ValueError('Duplicate assignment')
+            if curr_s == s_guid:
+                raise ValueError('Student already assigned')
+            if (curr_day, curr_slot, curr_c) == (day, slot, c_guid):
+                raise ValueError(
+                    'Coach already assigned on %s at %s' %
+                    (day_str, time_str))
+            if (curr_day, curr_c) == (day, c_guid) and curr_school != school:
+                raise ValueError(
+                    'Coach already assigned to a different school on %s' %
+                    day_str)
+                    
+    def is_manual_assignment(self, assign):
+        return assign in self._manual_assignments
 
 
 class Metadata(object):
