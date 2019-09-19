@@ -30,6 +30,12 @@ import traceback
 from . import database
 
 
+def copy_schedule(schedule):
+    if schedule is None:
+        return None
+    return [x.copy() for x in schedule]
+
+
 class ReferralRow:
 
     def __init__(self, row, meta):
@@ -85,7 +91,7 @@ class ReferralRow:
             student.gender = student_row[4]
             student.level = student_row[5]
             self.teacher.grade = student.grade
-            student.schedule = self.schedule
+            student.schedule = copy_schedule(self.schedule)
             # Skip gender, reading level, ELL, and race/ethnicity
             self.students.append(student)
             if student_row[-1].startswith('No'):
@@ -183,7 +189,10 @@ class AssignRow:
 
         student = None
         for curr_student in school.students:
-            if curr_student.student_id == self.student_id:
+            match_id = curr_student.student_id == self.student_id
+            match_first = curr_student.first == self.first
+            match_last = curr_student.last == self.last
+            if match_id and match_first and match_last:
                 student = curr_student
                 break
         if student is None:
@@ -210,6 +219,7 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
     invalid_referrals = []
     coaches = []
     invalid_coaches = []
+    student_ids = set()
 
     # Students
     with open(teacher_path, 'r') as csv_file:
@@ -234,11 +244,18 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
                     teacher_schedules[referral.teacher.email] = referral.schedule
                 elif referral.teacher.email in teacher_schedules:
                     for student in referral.students:
-                        student.schedule = teacher_schedules[student.teacher]
+                        student.schedule = copy_schedule(
+                            teacher_schedules[student.teacher])
                 else:
                     raise ValueError(
                         'No schedule found for %s' % referral.teacher.email)
                 for student in referral.students:
+                    student_id = (school.name, student.student_id)
+                    if student_id in student_ids:
+                        raise ValueError(
+                            'Duplicate student ID for %s %s' %
+                            (student.first, student.last))
+                    student_ids.add(student_id)
                     school.students.append(student)
             except Exception as ex:
                 #traceback.print_exc()
@@ -302,7 +319,7 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
                     assign_tuple = assign.to_db_obj(rsdb)
                     if not assign.manual:
                         rsdb.check_assignment(assign_tuple)
-                    rsdb.add_assignment(assign_tuple)
+                    rsdb.add_assignment(assign_tuple, manual=assign.manual)
                 except Exception as ex:
                     row.append(repr(ex))
                     invalid_assigns.append(row)

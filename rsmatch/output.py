@@ -28,7 +28,7 @@ import pprint
 import collections
 
 from . import database
-from . import matcher
+
 
 class MatcherOutput:
 
@@ -82,25 +82,14 @@ class MatcherOutput:
                 
     def create_report(self, filename='report.txt'):
         reports = []
-        matcher.Traversal.SLOTS_PER_ASSIGNMENT = self._rsdb.metadata.slots_per_assignment
         schools = sorted(self._rsdb.schools, key=lambda x: x.name)
         for school in schools:
-            school_coaches = []
-            for coach in self._rsdb.coaches:
-                match1 = school.name in coach.schools
-                match2 = 'Greatest Need' in coach.schools
-                if match1 or match2:
-                    school_coaches.append(coach)
-            match = matcher.SchoolMatcher(school, school_coaches)
-            match.find_cycles()
-            root = matcher.Traversal(school, school_coaches)
-            _, traversals = match.apply_assignments([root], self._rsdb.assignments)
-            root = traversals[0]
-            reports.append(TraversalReport(root))
+            report = SchoolResourceReport(self._rsdb, school)
+            reports.append(report)
 
         with open(filename, 'w') as out_file:
             for report in reports:
-                out_file.write('[%s]\n' % report.traversal.school.name)
+                out_file.write('[%s]\n' % report.school.name)
                 for key, val in report.dict.items():
                     if isinstance(val, float):
                         val = '%0.02f' % val
@@ -139,28 +128,34 @@ class MatcherOutput:
                 school = self._rsdb.find_school(teacher)
 
 
-class TraversalReport:
-    def __init__(self, trav):
-        self.traversal = trav
-        trav.reset_score()
-        self.num_assigned = len(trav.assigned_students)
-        self.num_unassigned = len(trav.unassigned_students)
-        self.total_students = self.num_assigned + self.num_unassigned
+class SchoolResourceReport:
+    def __init__(self, rsdb, school):
+        self.school = school
+        self.num_assigned = len(
+            [x for x in school.students if x.assigned])
+        self.num_unassigned = len(
+            [x for x in school.students if not x.assigned])
+        self.total_students = len(school.students)
         self.assign_percent = self.num_assigned / self.total_students * 100
         self.unassigned_percent = self.num_unassigned / self.total_students * 100
-        self.total_teachers = len(trav.school.teachers)
-        self.unassigned_teachers = trav.score[1]
-        self.assigned_teachers = self.total_teachers - self.unassigned_teachers
+        self.total_teachers = len(school.teachers)
+        self.assigned_teachers = len(
+            {x.teacher for x in school.students if x.assigned})
+        self.unassigned_teachers = self.total_teachers - self.assigned_teachers
         self.coaches_first = []
         self.coaches_second = []
         self.coaches_greatest = []
-        for coach in trav.coaches:
-            if trav.school.name == coach.schools[0]:
+        for coach in rsdb.coaches:
+            if school.name == coach.schools[0]:
                 self.coaches_first.append(coach)
-            if trav.school.name == coach.schools[1]:
+            if school.name == coach.schools[1]:
                 self.coaches_second.append(coach)
             if 'Greatest Need' in coach.schools:
                 self.coaches_greatest.append(coach)
+        num_coaches = len(set(
+            self.coaches_first +
+            self.coaches_second +
+            self.coaches_greatest))
         
         self.dict = collections.OrderedDict([
             ('Students.Total', self.total_students),
@@ -170,7 +165,7 @@ class TraversalReport:
             ('Teachers.Total', self.total_teachers),
             ('Teachers.Assigned', self.assigned_teachers),
             ('Teachers.Unassigned', self.unassigned_teachers),
-            ('Coaches.Total', len(trav.coaches))])
+            ('Coaches.Total', num_coaches)])
         coach_types = [
             ('FirstChoice', self.coaches_first),
             ('SecondChoice', self.coaches_second),
@@ -182,17 +177,14 @@ class TraversalReport:
             unassigned = []
             unassigned_days_remaining = 0
             for coach in coach_list:
-                found = False
-                for assign in trav.assignments:
-                    if coach.guid in assign:
-                        found = True
-                        break
-                if found:
+                if coach.assignments:
                     assigned.append(coach)
-                    assigned_days_remaining += trav.coach_day_count[coach.guid]
+                    assigned_days_remaining += (
+                        coach.num_days - len(coach.assigned_days))
                 else:
                     unassigned.append(coach)
-                    unassigned_days_remaining += trav.coach_day_count[coach.guid]
+                    unassigned_days_remaining += (
+                        coach.num_days - len(coach.assigned_days))
             self.dict['Coaches.%s.Assigned' % type] = len(assigned)
             self.dict['Coaches.%s.Assigned.DaysRemaining' % type] = assigned_days_remaining
             self.dict['Coaches.%s.Unassigned' % type] = len(unassigned)

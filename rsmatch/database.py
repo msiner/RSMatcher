@@ -58,9 +58,14 @@ class RSDatabase(object):
         database.coaches = coaches
         database.catalog = Catalog.from_json_obj(json_obj['catalog'])
         database.metadata = Metadata.from_json_obj(json_obj['metadata'])
-        database._assignments = [tuple(x) for x in json_obj['assignments']]
         database._manual_assignments = set(
             [tuple(x) for x in json_obj['manual_assignments']])
+        database.init_catalog()
+        assignments = [tuple(x) for x in json_obj['assignments']]
+        for assign in assignments:
+            if not database.is_manual_assignment(assign):
+                database.check_assignment(assign)
+            database.add_assignment(assign)
         return database
 
     def save(self, path=None):
@@ -100,6 +105,17 @@ class RSDatabase(object):
         return None
 
     def add_assignment(self, assign, manual=False):
+        day, slot, _, s_guid, c_guid = assign
+        student = self.catalog.get_obj(s_guid)
+        coach = self.catalog.get_obj(c_guid)
+        
+        student.assigned = True
+        coach.assigned_days.add(day)
+        coach.assignments.add(assign)
+        for slot_i in range(self.metadata.slots_per_assignment):
+            coach.schedule[day][slot_i] = 2
+            student.schedule[day][slot_i] = 2
+            
         index = 0
         for assign_i in range(len(self._assignments)):
             if self._assignments[assign_i] < assign:
@@ -135,7 +151,7 @@ class RSDatabase(object):
             if curr_assign == assign:
                 raise ValueError('Duplicate assignment')
             if curr_s == s_guid:
-                raise ValueError('Student already assigned')
+                raise ValueError('Student already assigned %s %s %s' % (student.to_json_obj(), assign, curr_assign))
             if (curr_day, curr_slot, curr_c) == (day, slot, c_guid):
                 raise ValueError(
                     'Coach already assigned on %s at %s' %
@@ -321,7 +337,6 @@ class Teacher(object):
         self.first = None
         self.last = None
         self.grade = None
-        self.schedule = None
 
     def to_json_obj(self):
         return collections.OrderedDict([
@@ -354,6 +369,7 @@ class Student(object):
         self.gender = None
         self.level = None
         self.schedule = None
+        self.assigned = False
 
     def to_json_obj(self):
         return collections.OrderedDict([
@@ -394,6 +410,8 @@ class Coach(object):
         self.num_students = None
         self.num_days = None
         self.schedule = None
+        self.assigned_days = set()
+        self.assignments = set()
 
     def to_json_obj(self):
         return collections.OrderedDict([

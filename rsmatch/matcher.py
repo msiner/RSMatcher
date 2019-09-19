@@ -62,10 +62,12 @@ class Traversal: # pylint: disable=too-many-instance-attributes
         if parent is None:
             # If there is no parent, create clean state
             # Keep track of how many students have been assigned to each coach
-            self.coach_student_count = {x.guid:x.num_students for x in coaches}
+            self.coach_student_count = {
+                x.guid:x.num_students - len(x.assignments) for x in coaches}
 
             # Keep track of how many days each coach has been assigned
-            self.coach_day_count = {x.guid:x.num_days for x in coaches}
+            self.coach_day_count = {
+                x.guid:x.num_days - len(x.assigned_days) for x in coaches}
 
             # Keep these tallies for efficient checking vs the dict and set lookups
             self.days_remaining = sum([x for x in self.coach_day_count.values()])
@@ -73,11 +75,13 @@ class Traversal: # pylint: disable=too-many-instance-attributes
 
             # A dict of sets such that coach_days[coach_guid] is a set of day_i values
             # representing each day the coach has been given an assignment.
-            self.coach_days = {x.guid:set() for x in coaches}
+            self.coach_days = {x.guid:x.assigned_days.copy() for x in coaches}
 
-            # Add all students to the unassigned pool
-            self.unassigned_students = {x.guid for x in school.students}
-            self.assigned_students = set()
+            # Add students to the unassigned and assigned pools
+            self.unassigned_students = {
+                x.guid for x in school.students if not x.assigned}
+            self.assigned_students = {
+                x.guid for x in school.students if x.assigned}
 
             # Keep track of all (day_i, slot_i, teacher_guid) nodes that have
             # been used for the entire solution.
@@ -100,7 +104,7 @@ class Traversal: # pylint: disable=too-many-instance-attributes
             self.num_cycles = parent.num_cycles
             self.assignments = parent.assignments.copy()
 
-    def add_cycle(self, graph, cycle, node_to_student=None):
+    def add_cycle(self, graph, cycle):
         """Attempt to add a cycle to this traversal and return the new
         traversal if it can be added.
 
@@ -114,10 +118,6 @@ class Traversal: # pylint: disable=too-many-instance-attributes
             The cycle will not add anything new to this solution.
             If the cycle cannot be added, returns None.
         """
-        preassigned_students = set()
-        if node_to_student:
-            for student_guid in node_to_student.values():
-                preassigned_students.add(student_guid)
         result = None
         coach_guid = cycle[0]
         # Since each of the following checks takes some amount of work,
@@ -161,13 +161,8 @@ class Traversal: # pylint: disable=too-many-instance-attributes
                             for student_guid in node_students:
                                 if student_guid in possible_students:
                                     if student_guid in result.unassigned_students:
-                                        if student_guid not in preassigned_students:
-                                            to_assign = student_guid
-                                            break
-
-                            # Force any existing assignment
-                            if node_to_student and node in node_to_student:
-                                to_assign = node_to_student[node]
+                                        to_assign = student_guid
+                                        break
 
                             if to_assign is not None:
                                 # We found an unassigned student in the slot
@@ -298,7 +293,7 @@ class SchoolMatcher:
         for day_i in range(num_days):
             for slot_i in range(num_slots):
                 for student in students:
-                    if student.schedule[day_i][slot_i]:
+                    if student.schedule[day_i][slot_i] == 1:
                         teacher_guid = teachers_by_email[student.teacher].guid
                         key = (day_i, slot_i)
                         if key not in nodes:
@@ -352,7 +347,7 @@ class SchoolMatcher:
             no_grade_pref = len(grades) == 0
             for day_i in range(num_days):
                 for slot_i in range(num_slots):
-                    if coach.schedule[day_i][slot_i]:
+                    if coach.schedule[day_i][slot_i] == 1:
                         slot_key = (day_i, slot_i)
                         if slot_key in nodes:
                             slot_node = nodes[slot_key]
@@ -445,68 +440,6 @@ class SchoolMatcher:
         #with open('cycles.txt', 'w') as cycles_file:
         #    for cycle in self.cycles:
         #        cycles_file.write('%s\n' % cycle)
-
-    def apply_assignments(self, traversals, assignments):
-        node_to_student = {}
-        assign_groups = {}
-        assign_cycles = {}
-        new_cycles = []
-
-        # First, group the assignments together by day, slot, teacher
-        # because that is how each graph node is identified
-        for assign in assignments:
-            day, slot, t_guid, s_guid, c_guid = assign
-            key = (day, c_guid)
-            node_key = (day, slot, t_guid)
-            if key not in assign_groups:
-                assign_groups[key] = []
-            assign_groups[key].append(assign)
-            node_to_student[node_key] = s_guid
-
-        # Next put each cycle either into a group bin or back into the
-        # list of all cycles.
-        for key, group in assign_groups.items():
-            group_cycles = []
-            for cycle in self.cycles:
-                # A cycle goes into a group bin if it contains a node that
-                # matches each assignment in a group (it may have more)
-                group_match = True
-                for day, slot, t_guid, s_guid, c_guid in group:
-                    assign_node_key = (day, slot, t_guid)
-                    assign_match = False
-                    if c_guid == cycle[0]:
-                        for node_key in cycle[1:]:
-                            if node_key == assign_node_key:
-                                assign_match = True
-                                break
-                    group_match = group_match and assign_match
-                if group_match:
-                    group_cycles.append(cycle)
-                else: 
-                    new_cycles.append(cycle)
-            if not group_cycles:
-                raise RuntimeError(
-                    'Invalid assignment group %s' % group)
-            assign_cycles[key] = group_cycles
-
-        # Finally, create a new traversals list.
-        # Initially, traversals will have a single empty root node.
-        for key, group_cycles in assign_cycles.items():
-            new_traversals = []
-            for traversal in traversals:
-                for cycle in group_cycles:
-                    new_traversal = traversal.add_cycle(
-                        self.graph, cycle, node_to_student=node_to_student)
-                    if new_traversal is not None:
-                        # Unlike in find_solutions(), we don't keep the parent
-                        # traversal, because we must guarantee that all of
-                        # the pre-existing assignments survive.
-                        # So we are building a tree, but removing the previous
-                        # layer at each step.
-                        new_traversals.append(new_traversal)
-            traversals = new_traversals
-
-        return new_cycles, traversals
         
     def notify(self, progress=None, status=None):
         if progress is not None:
@@ -517,7 +450,7 @@ class SchoolMatcher:
         if self.callback is not None:
             self.callback(self)
 
-    def find_solutions(self, assignments=None):
+    def find_solutions(self):
         """Search for the best solution.
         The best solution is stored in the 'solution' attribute'
         """
@@ -528,8 +461,6 @@ class SchoolMatcher:
         root = Traversal(self.school, self.coaches)
         traversals = [root]
         cycles = self.cycles
-        if assignments:
-            cycles, traversals = self.apply_assignments(traversals, assignments)
         
         cycles_remaining = len(cycles)
         total_possible = 2**cycles_remaining
@@ -539,7 +470,7 @@ class SchoolMatcher:
         
         finished = []
         max_finished = 100000
-        max_unfinished = 500000
+        max_unfinished = 200000
 
         num_cycles = 0
         for cycle in cycles:
@@ -547,7 +478,7 @@ class SchoolMatcher:
             expected_size = 2**num_cycles
             eliminated = expected_size - len(traversals)
             self.notify(
-                eliminated / total_possible,
+                num_cycles / len(cycles),#eliminated / total_possible,
                 '%d finished, %d unfinished' % (len(finished), len(traversals)))
             #print(len(finished), len(traversals), cycle)
             #print(cycles_remaining, eliminated)
@@ -595,7 +526,7 @@ class SchoolMatcher:
         print('Top 10 results:')
         for traversal in finished[:10]:
             print(traversal.score)
-        print('Assignments:')
+        print('New Assignments:')
         pprint(finished[0].assignments)
         # Take the best Traversal as the solution
         self.solution = finished[0]
@@ -621,7 +552,9 @@ def do_match(database_path, school=None, first=True, second=False, greatest=Fals
                     school_coaches.append(coach)
             matcher = SchoolMatcher(school_obj, school_coaches)
             matcher.find_cycles()
-            matcher.find_solutions(assignments=rsdb.assignments)
+            matcher.find_solutions()
+            for assign in matcher.solution.assignments:
+                rsdb.check_assignment(assign)
             for assign in matcher.solution.assignments:
                 rsdb.add_assignment(assign)
 
