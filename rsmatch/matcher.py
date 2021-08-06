@@ -312,6 +312,7 @@ class SchoolMatcher:
             for teacher_guid, node_students in node.items():
                 node_key = (key[0], key[1], teacher_guid)
                 graph.add_node(node_key, students=node_students)
+                
         # The master graph only has directed edges such that:
         # (day_i, slot_i, teacher_guid) => (day_i, slot_i + 1, teacher_guid)
         # This means that following the edges can only follow
@@ -462,10 +463,6 @@ class SchoolMatcher:
         traversals = [root]
         cycles = self.cycles
         
-        cycles_remaining = len(cycles)
-        total_possible = 2**cycles_remaining
-        eliminated = 0
-        
         print('Total cycles: %d' % len(cycles))
         
         finished = []
@@ -478,10 +475,9 @@ class SchoolMatcher:
             expected_size = 2**num_cycles
             eliminated = expected_size - len(traversals)
             self.notify(
-                num_cycles / len(cycles),#eliminated / total_possible,
+                num_cycles / len(cycles),
                 '%d finished, %d unfinished' % (len(finished), len(traversals)))
-            #print(len(finished), len(traversals), cycle)
-            #print(cycles_remaining, eliminated)
+
             if len(finished) >= max_finished:
                 break
             if len(traversals) >= max_unfinished:

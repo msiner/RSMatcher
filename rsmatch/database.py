@@ -367,7 +367,7 @@ class Student(object):
         self.last = None
         self.grade = None
         self.gender = None
-        self.level = None
+        self.ell = None
         self.schedule = None
         self.assigned = False
 
@@ -380,7 +380,7 @@ class Student(object):
             ('last', self.last),
             ('grade', self.grade),
             ('gender', self.gender),
-            ('level', self.level),
+            ('ell', self.ell),
             ('schedule', self.schedule)])
 
     @classmethod
@@ -393,7 +393,7 @@ class Student(object):
         student.last = json_obj['last']
         student.grade = json_obj['grade']
         student.gender = json_obj['gender']
-        student.level = json_obj['level']
+        student.ell = json_obj['ell']
         student.schedule = json_obj['schedule']
         return student
 

@@ -41,17 +41,17 @@ class ReferralRow:
     def __init__(self, row, meta):
         self.timestamp = row[0]
         self.teacher = database.Teacher()
-        self.teacher.email = row[1].strip()
-        self.school = row[4].strip()
-        self.teacher.first = row[5].strip()
-        self.teacher.last = row[6].strip()
+        self.school = row[2].strip()
+        self.teacher.first = row[3].strip()
+        self.teacher.last = row[4].strip()
+        self.teacher.email = row[5].strip()
         self.schedule = None
 
-        if row[8].startswith('This is my first'):
+        if row[6].startswith('This is my first'):
             schedule = [[0] * meta.num_slots for _ in range(meta.num_days)]
             # lunch, recess1, recess2
-            exclusions = row[9:12]
-            days = row[12:12 + meta.num_days]
+            exclusions = row[7:10]
+            days = row[10:10 + meta.num_days]
             for day_i in range(meta.num_days):
                 day_times = days[day_i]
                 day_times = day_times.split(',')
@@ -80,8 +80,8 @@ class ReferralRow:
             self.schedule = schedule
         
         self.students = []
-        for col_i in range(12 + meta.num_days, len(row) - 2, 9):
-            student_row = row[col_i:col_i + 9]
+        for col_i in range(10 + meta.num_days, len(row) - 2, 9):
+            student_row = row[col_i:col_i + 6]
             student = database.Student()
             student.teacher = self.teacher.email
             student.student_id = student_row[0]
@@ -89,10 +89,9 @@ class ReferralRow:
             student.last = student_row[2]
             student.grade = student_row[3]
             student.gender = student_row[4]
-            student.level = student_row[5]
+            student.ell = student_row[5]
             self.teacher.grade = student.grade
             student.schedule = copy_schedule(self.schedule)
-            # Skip gender, reading level, ELL, and race/ethnicity
             self.students.append(student)
             if student_row[-1].startswith('No'):
                 break
@@ -106,13 +105,14 @@ class CoachRow:
         self.first = row[3]
         self.last = row[4]
         # Skip phone number
-        self.school_prefs = row[9:11]
+        self.school_prefs = row[11:13]
+        # TODO: remove grade preferences
         self.grade_prefs = ['K', '1', '2', '3', '4', '5']
         
-        self.num_students = int(row[12])
-        self.num_days = int(row[13])
+        self.num_students = 3
+        self.num_days = 1
 
-        availability = row[11].strip().split(',')
+        availability = row[14].strip().split(',')
         day_lut = {
             'Monday': 0, 'Tuesday': 1, 'Wednesday': 2,
             'Thursday': 3, 'Friday': 4}
@@ -156,7 +156,7 @@ class AssignRow:
         self.last = row[8]
         self.grade = row[9]
         self.gender = row[10]
-        self.reading_level = row[11]
+        self.ell = row[11]
         self.volunteer_id = row[12]
         self.coach_email = row[13]
         self.coach_first = row[14]

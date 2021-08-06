@@ -44,7 +44,7 @@ class MatcherOutput:
             'School', 'Day', 'Time',
             'Teacher Email', 'Teacher First', 'Teacher Last',
             'Student ID', 'Student First', 'Student Last',
-            'Grade', 'Gender', 'Reading Level',
+            'Grade', 'Gender', 'ELL Student',
             'Volunteer ID', 'Coach Email', 'Coach First', 'Coach Last',
             'Manual']]
         for assign in self._rsdb.assignments:
@@ -68,7 +68,7 @@ class MatcherOutput:
                 student.last,
                 student.grade,
                 student.gender,
-                student.level,
+                student.ell,
                 coach.vid,
                 coach.email,
                 coach.first,
