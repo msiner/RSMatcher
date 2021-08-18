@@ -21,7 +21,6 @@ SOFTWARE.
 """
 
 
-import time
 import math
 import json
 import datetime
@@ -40,7 +39,6 @@ class RSDatabase(object):
         self.catalog = Catalog()
         self.metadata = Metadata()
         self._assignments = []
-        self._manual_assignments = set()
 
     @property
     def assignments(self):
@@ -58,14 +56,14 @@ class RSDatabase(object):
         database.coaches = coaches
         database.catalog = Catalog.from_json_obj(json_obj['catalog'])
         database.metadata = Metadata.from_json_obj(json_obj['metadata'])
-        database._manual_assignments = set(
-            [tuple(x) for x in json_obj['manual_assignments']])
         database.init_catalog()
-        assignments = [tuple(x) for x in json_obj['assignments']]
-        for assign in assignments:
-            if not database.is_manual_assignment(assign):
+        for x in json_obj['assignments']:
+            assign = tuple(x['assign']),
+            manual = bool(x['manual'])
+            timestamp = datetime.fromisoformat(x['timestamp']) if x['timestamp'] else None
+            if not manual:
                 database.check_assignment(assign)
-            database.add_assignment(assign)
+            database.add_assignment(assign, manual=manual, timestamp=timestamp)
         return database
 
     def save(self, path=None):
@@ -76,7 +74,6 @@ class RSDatabase(object):
         json_obj = collections.OrderedDict([
             ('metadata', self.metadata.to_json_obj()),
             ('assignments', self._assignments),
-            ('manual_assignments', list(self._manual_assignments)),
             ('schools', [x.to_json_obj() for x in self.schools]),
             ('coaches', [x.to_json_obj() for x in self.coaches]),
             ('catalog', self.catalog.to_json_obj())])
@@ -104,7 +101,7 @@ class RSDatabase(object):
                     return school
         return None
 
-    def add_assignment(self, assign, manual=False):
+    def add_assignment(self, assign, manual=False, timestamp=None):
         day, slot, _, s_guid, c_guid = assign
         student = self.catalog.get_obj(s_guid)
         coach = self.catalog.get_obj(c_guid)
@@ -113,8 +110,8 @@ class RSDatabase(object):
         coach.assigned_days.add(day)
         coach.assignments.add(assign)
         for slot_i in range(self.metadata.slots_per_assignment):
-            coach.schedule[day][slot_i] = 2
-            student.schedule[day][slot_i] = 2
+            coach.schedule[day][slot + slot_i] = 2
+            student.schedule[day][slot + slot_i] = 2
             
         index = 0
         for assign_i in range(len(self._assignments)):
@@ -124,9 +121,11 @@ class RSDatabase(object):
                 return
             elif self._assignments[assign_i] > assign:
                 break
-        self._assignments.insert(index, assign)
-        if manual:
-            self._manual_assignments.add(assign)
+        self._assignments.insert(index, {
+            'assign': assign,
+            'manual': manual,
+            'timestamp': timestamp,
+        })
         
     def check_assignment(self, assign):
         day, slot, t_guid, s_guid, c_guid = assign
@@ -160,9 +159,6 @@ class RSDatabase(object):
                 raise ValueError(
                     'Coach already assigned to a different school on %s' %
                     day_str)
-                    
-    def is_manual_assignment(self, assign):
-        return assign in self._manual_assignments
 
 
 class Metadata(object):

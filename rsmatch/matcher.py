@@ -25,11 +25,11 @@ import collections
 import random
 from pprint import pprint
 import argparse
+from datetime import datetime
 
 import networkx
 
 from . import database
-from . import output
 
 
 class Traversal: # pylint: disable=too-many-instance-attributes
@@ -549,10 +549,12 @@ def do_match(database_path, school=None, first=True, second=False, greatest=Fals
             matcher = SchoolMatcher(school_obj, school_coaches)
             matcher.find_cycles()
             matcher.find_solutions()
+            timestamp = datetime.now().isoformat()
             for assign in matcher.solution.assignments:
                 rsdb.check_assignment(assign)
             for assign in matcher.solution.assignments:
-                rsdb.add_assignment(assign)
+                rsdb.check_assignment(assign)
+                rsdb.add_assignment(assign, timestamp=timestamp)
 
     rsdb.save()
 

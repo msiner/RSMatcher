@@ -25,7 +25,6 @@ import os.path
 import csv
 import random
 import argparse
-import traceback
 
 from . import database
 
@@ -162,9 +161,9 @@ class AssignRow:
         self.coach_first = row[14]
         self.coach_last = row[15]
         self.manual = False
-        if len(row) > 16:
-            if row[16].lower() in ('true', 'yes'):
-                self.manual = True
+        self.timestamp = row[16]
+        if self.timestamp == 'manual':
+            self.manual = True
 
     def to_db_obj(self, rsdb):
         school = None
@@ -308,18 +307,19 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
 
     if assign_path:
         invalid_assigns = []
-        assignments = []
         with open(assign_path, 'r') as csv_file:
             reader = csv.reader(csv_file)
             for row in reader:
                 if row[0] == 'School':
                     continue
                 try:
-                    assign = AssignRow(row, meta)
-                    assign_tuple = assign.to_db_obj(rsdb)
-                    if not assign.manual:
-                        rsdb.check_assignment(assign_tuple)
-                    rsdb.add_assignment(assign_tuple, manual=assign.manual)
+                    assign_row = AssignRow(row, meta)
+                    assign = assign.to_db_obj(rsdb)
+                    manual = assign_row.manual
+                    timestamp = assign_row.timestamp
+                    if not manual:
+                        rsdb.check_assignment(assign)
+                    rsdb.add_assignment(assign, manual=manual, timestamp=timestamp)
                 except Exception as ex:
                     row.append(repr(ex))
                     invalid_assigns.append(row)
@@ -342,7 +342,7 @@ def main():
     parser = argparse.ArgumentParser(
         description='Create assignment database using specified input')
     parser.add_argument(
-        '-o', '--out', dest='out_path', default='database.json',
+        '-o', '--out', dest='out_path', default='rsdb.json',
         help='path to referral output file')
     parser.add_argument(
         '-a', '--assign', dest='assign_path', default=None,

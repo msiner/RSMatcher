@@ -24,7 +24,6 @@ SOFTWARE.
 import csv
 import argparse
 import os.path
-import pprint
 import collections
 
 from . import database
@@ -46,16 +45,18 @@ class MatcherOutput:
             'Student ID', 'Student First', 'Student Last',
             'Grade', 'Gender', 'ELL Student',
             'Volunteer ID', 'Coach Email', 'Coach First', 'Coach Last',
-            'Manual']]
-        for assign in self._rsdb.assignments:
-            day, slot, t_guid, s_guid, c_guid = assign
+            'Timestamp']]
+        for entry in self._rsdb.assignments:
+            day, slot, t_guid, s_guid, c_guid = entry['assign']
+            timestamp = entry['timestamp']
+            if entry['manual']:
+                timestamp = 'manual'
             day_str = self._rsdb.metadata.day_to_str(day)
             time_str = self._rsdb.metadata.slot_to_time(slot)
             teacher = self._rsdb.catalog.get_obj(t_guid)
             student = self._rsdb.catalog.get_obj(s_guid)
             coach = self._rsdb.catalog.get_obj(c_guid)
             school = self._rsdb.find_school(teacher)
-            manual = self._rsdb.is_manual_assignment(assign)
             rows.append([
                 school.name,
                 day_str,
@@ -73,7 +74,7 @@ class MatcherOutput:
                 coach.email,
                 coach.first,
                 coach.last,
-                manual])
+                timestamp])
 
         with open(path, 'w', newline='') as csv_file:
             writer = csv.writer(csv_file)
@@ -95,37 +96,6 @@ class MatcherOutput:
                         val = '%0.02f' % val
                     out_file.write('%s=%s\n' % (key, val))
                 out_file.write('\n')
-
-    def create_school_calendars(self):
-        school_assigns = {x.name: [] for x in self._rsdb.schools}
-        for assign in self._rsdb.assignments:
-            teacher = self._rsdb.catalog.get_obj(assign[2])
-            school = self._rsdb.find_school(teacher)
-            school_assigns[school.name].append(assign)
-
-        for school_name, assigns in school_assigns.items():
-            school = None
-            teacher_to_row = {}
-            for curr_school in self._rsdb.schools:
-                if school_name == curr_school.name:
-                    school = curr_school
-                    break
-            def grade_val(teacher_obj):
-                if teacher_obj.grade == 'K':
-                    return 0
-                return int(teacher_obj.grade)
-            row_i = 0
-            for teacher in sorted(school.teachers, key=grade_val):
-                teacher_to_row[teacher.guid] = row_i
-                row_i += 1
-            for assign in assigns:
-                day, slot, t_guid, s_guid, c_guid = assign
-                day_str = self._rsdb.metadata.day_to_str(day)
-                time_str = self._rsdb.metadata.slot_to_time(slot)
-                teacher = self._rsdb.catalog.get_obj(t_guid)
-                student = self._rsdb.catalog.get_obj(s_guid)
-                coach = self._rsdb.catalog.get_obj(c_guid)
-                school = self._rsdb.find_school(teacher)
 
 
 class SchoolResourceReport:
@@ -189,52 +159,6 @@ class SchoolResourceReport:
             self.dict['Coaches.%s.Assigned.DaysRemaining' % type] = assigned_days_remaining
             self.dict['Coaches.%s.Unassigned' % type] = len(unassigned)
             self.dict['Coaches.%s.Unassigned.DaysRemaining' % type] = unassigned_days_remaining
-
-
-def create_school_calendar(path, school, assignments):
-    num_days = len(school.students[0].schedule)
-    num_slots = len(school.students[0].schedule[0])
-    calendar = []
-    teacher_schedules = {}
-    coach_schedules = {}
-    email_to_guid = dict([(x.email, x.guid) for x in school.teachers])
-    teacher_keys = [(guid, email) for email, guid in email_to_guid.items()]
-    teacher_lookup = dict(teacher_keys)
-
-    for student in school.students:
-        if student.teacher not in teacher_schedules:
-            teacher_schedules[student.teacher] = [x[:] for x in student.schedule]
-        else:
-            schedule = teacher_schedules[student.teacher]
-            for day_i in range(num_days):
-                for slot_i in range(num_slots):
-                    schedule[day_i][slot_i] |= student.schedule[day_i][slot_i]
-
-    for day_i, slot_i, teacher_id, student_id, coach_id in assignments:
-        schedule = teacher_schedules[teacher_lookup[teacher_id]]
-        schedule[day_i][slot_i] = 2
-
-    header_row = ['teacher', 'grade']
-    for day_i in range(num_days):
-        for slot_i in range(num_slots):
-            header_row.append('%s@%s' % (day_i, slot_i))
-    calendar.append(header_row)
-
-    for teacher_id, teacher_email in sorted(teacher_keys):
-        for teacher in school.teachers:
-            if teacher.guid == teacher_id:
-                grade = teacher.grade
-        row = [teacher_id, grade]
-        schedule = teacher_schedules[teacher_email]
-        for day_i in range(num_days):
-            row += schedule[day_i]
-        calendar.append(row)
-
-    with open(path, 'w', newline='') as csv_file:
-        writer = csv.writer(csv_file)
-        for row in calendar:
-            writer.writerow(row)
-
 
 def main():
     parser = argparse.ArgumentParser()
