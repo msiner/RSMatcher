@@ -19,7 +19,7 @@ the software in each released version.
 - Change how pre-existing assignments are applied to the database and
   used in the matcher
 
-## TBD v7
+## 2021/08/29 v7
 - Update to use 2021 CSV columns
 - Last column of assignments CSV is now either a timestamp or "manual"
 - Build script to release as single EXE file.
