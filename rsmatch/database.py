@@ -58,9 +58,9 @@ class RSDatabase(object):
         database.metadata = Metadata.from_json_obj(json_obj['metadata'])
         database.init_catalog()
         for x in json_obj['assignments']:
-            assign = tuple(x['assign']),
+            assign = tuple(x['assign'])
             manual = bool(x['manual'])
-            timestamp = datetime.fromisoformat(x['timestamp']) if x['timestamp'] else None
+            timestamp = x['timestamp']
             if not manual:
                 database.check_assignment(assign)
             database.add_assignment(assign, manual=manual, timestamp=timestamp)
@@ -115,11 +115,12 @@ class RSDatabase(object):
             
         index = 0
         for assign_i in range(len(self._assignments)):
-            if self._assignments[assign_i] < assign:
+            curr_assign = self._assignments[assign_i]['assign']
+            if curr_assign < assign:
                 index = assign_i + 1
-            elif self._assignments[assign_i] == assign:
+            elif curr_assign == assign:
                 return
-            elif self._assignments[assign_i] > assign:
+            elif curr_assign > assign:
                 break
         self._assignments.insert(index, {
             'assign': assign,
@@ -144,7 +145,8 @@ class RSDatabase(object):
             if not slot_val:
                 raise ValueError(
                     'Student not available %s at %s' % (day_str, time_str))
-        for curr_assign in self._assignments:
+        for curr in self._assignments:
+            curr_assign = curr['assign']
             curr_day, curr_slot, _, curr_s, curr_c = curr_assign
             curr_school = self.find_school(teacher)
             if curr_assign == assign:

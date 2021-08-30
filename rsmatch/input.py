@@ -25,6 +25,7 @@ import os.path
 import csv
 import random
 import argparse
+import traceback
 
 from . import database
 
@@ -79,8 +80,8 @@ class ReferralRow:
             self.schedule = schedule
         
         self.students = []
-        for col_i in range(10 + meta.num_days, len(row) - 2, 9):
-            student_row = row[col_i:col_i + 6]
+        for col_i in range(10 + meta.num_days, len(row) - 2, 8):
+            student_row = row[col_i:col_i + 8]
             student = database.Student()
             student.teacher = self.teacher.email
             student.student_id = student_row[0]
@@ -314,7 +315,7 @@ def create_database(teacher_path, coach_path, assign_path, out_path):
                     continue
                 try:
                     assign_row = AssignRow(row, meta)
-                    assign = assign.to_db_obj(rsdb)
+                    assign = assign_row.to_db_obj(rsdb)
                     manual = assign_row.manual
                     timestamp = assign_row.timestamp
                     if not manual:

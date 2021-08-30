@@ -1,4 +1,4 @@
-# Reading Seed Matcher
+# RSMatcher
 
 ## Theory of Operation
 

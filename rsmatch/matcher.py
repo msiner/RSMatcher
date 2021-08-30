@@ -148,13 +148,13 @@ class Traversal: # pylint: disable=too-many-instance-attributes
                         # RULE: Don't schedule two coaches at the same time with the same teacher
                         if not nodes.intersection(result.nodes_used):
                             result.nodes_used = nodes.union(result.nodes_used)
-                            node_students = graph.node[node]['students']
+                            node_students = graph.nodes[node]['students']
                             possible_students = set(node_students)
                             to_assign = None
 
                             # Make sure each student is available for the entire slot
                             for curr_node in nodes:
-                                curr_students = set(graph.node[curr_node]['students'])
+                                curr_students = set(graph.nodes[curr_node]['students'])
                                 possible_students = possible_students.intersection(curr_students)
 
                             # Try to find a student to assign
@@ -562,11 +562,22 @@ def do_match(database_path, school=None, first=True, second=False, greatest=Fals
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--school', '-s', default=None, help='Name of school process')
+        '--school', default=None, help='Name of school process')
+    parser.add_argument(
+        '--first', default=False, action='store_true')
+    parser.add_argument(
+        '--second', default=False, action='store_true')
+    parser.add_argument(
+        '--greatest', default=False, action='store_true')
     parser.add_argument(
         'db_path', default='rsdb.json')
     args = parser.parse_args()
-    do_match(args.db_path, school=args.school)
+    do_match(
+        args.db_path,
+        school=args.school,
+        first=args.first or not (args.first or args.second or args.greatest),
+        second=args.second,
+        greatest=args.greatest)
 
 
 if __name__ == '__main__':
